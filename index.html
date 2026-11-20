@@ -38,6 +38,8 @@
   .bar{height:6px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:6px}
   .bar i{display:block;height:100%;background:var(--gold);width:0;transition:width .2s}
   .list{display:flex;flex-direction:column;gap:16px}
+  .sheets{background:var(--panel);border:1px solid var(--gold);border-radius:14px;padding:16px 18px;margin:0 0 18px}
+  .sheets h2{font-family:Cinzel,serif;font-size:20px;color:var(--gold2);margin:0 0 6px}
   .card{display:grid;grid-template-columns:260px 1fr;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
   @media (max-width:640px){.card{grid-template-columns:1fr}}
   .prev{background:repeating-conic-gradient(#3b3026 0% 25%,#2a221a 0% 50%) 50%/18px 18px;border-radius:10px;display:flex;align-items:center;justify-content:center;min-height:200px;overflow:hidden}
@@ -109,20 +111,28 @@
 
   <div class="batch" id="batch">
     <div class="count"><span id="bcount"></span><small id="bnote"></small><div class="bar"><i id="bbar"></i></div></div>
-    <button class="btn" type="button" id="saveFolder">Save all to a new folder</button>
+    <button class="btn" type="button" id="makeSheets" title="Packs up to 16 pictures onto one sheet: one link in Prop Studio gives you all of them">Make picture sheets</button>
+    <button class="btn ghost" type="button" id="saveFolder">Save all to a new folder</button>
     <button class="btn ghost" type="button" id="saveZip">Download all as ZIP</button>
     <button class="btn ghost" type="button" id="clearAll">Clear all</button>
   </div>
   <p class="msg" id="bmsg" style="margin:-6px 0 14px"></p>
+  <div id="sheets" class="sheets" style="display:none">
+    <h2>Picture sheets</h2>
+    <p class="msg">Each sheet holds up to 16 pictures. Upload the sheets to Imgur, then paste one sheet link into Prop Studio and press <b>Open sheet</b>: you'll see all its pictures and can tap any of them (or Spawn all).</p>
+    <div class="row"><button class="btn" type="button" id="sheetsFolder">Save sheets to a new folder</button><button class="btn ghost" type="button" id="sheetsZip">Download sheets as ZIP</button></div>
+    <p class="msg" id="smsg"></p>
+    <div class="list" id="sheetList"></div>
+  </div>
   <div class="list" id="list"></div>
 
   <div class="steps">
     <h2>Getting it into Prop Studio</h2>
     <ol>
-      <li>Convert your pictures above, then press <b>Save</b> (or <b>Save all</b> for a whole folder).</li>
+      <li>Convert your pictures above. For several pictures, press <b>Make picture sheets</b> (16 pictures per sheet) and save the sheets. For one picture, just press <b>Save</b>.</li>
       <li>Upload it to <a href="https://imgur.com/upload">imgur.com/upload</a> (no account needed). Everyone in the world can see Imgur pictures; other sites need “Allow Untrusted URLs”.</li>
       <li>On the Imgur page, right-click the picture and choose <b>Copy image address</b>. It should start with <code>https://i.imgur.com/</code> and end in <code>.png</code> or <code>.jpg</code>.</li>
-      <li>Paste that link into Prop Studio on your tablet and press Spawn.</li>
+      <li>Paste that link into Prop Studio and press <b>Spawn</b> (one picture) or <b>Open sheet</b> (a sheet: tap the pictures you want, or Spawn all). Save it with a name and it's there every visit.</li>
     </ol>
     <p class="msg">Animated GIFs: VRChat can't play .gif files. This page keeps the first frame as a picture. To keep the animation, upload the GIF to Imgur and change <code>.gif</code> to <code>.mp4</code> at the end of the link.</p>
   </div>
@@ -384,7 +394,7 @@
     $('bcount').textContent = busy > 0 ? `Converting… ${ready + failed} of ${total}` : `${ready} picture${ready === 1 ? '' : 's'} ready`;
     $('bnote').textContent = [failed ? `${failed} couldn't be opened` : '', skipped ? `${skipped} non-picture file${skipped === 1 ? '' : 's'} skipped` : ''].filter(Boolean).join(' · ');
     $('bbar').style.width = total ? Math.round(100 * (ready + failed) / total) + '%' : '0%';
-    $('saveFolder').disabled = $('saveZip').disabled = busy > 0 || ready === 0;
+    $('saveFolder').disabled = $('saveZip').disabled = $('makeSheets').disabled = busy > 0 || ready === 0;
   }
   function outNames() {
     const used = new Set(), names = [];
@@ -397,34 +407,92 @@
     return names;
   }
   $('clearAll').addEventListener('click', () => { for (const it of items) { if (it.out?.url) URL.revokeObjectURL(it.out.url); it.el.remove(); } items.length = 0; skipped = 0; bmsg.textContent = ''; updateBatch(); });
-  $('saveFolder').addEventListener('click', async () => {
-    const files = outNames();
+  async function saveToFolder(files, base, msgEl, what) {
     try {
       const parent = await window.showDirectoryPicker({ mode: 'readwrite' });
-      let name = 'Prop Studio pictures', k = 2, dir;
-      while (true) { try { await parent.getDirectoryHandle(name); name = 'Prop Studio pictures ' + (k++); } catch (e) { break; } }
-      dir = await parent.getDirectoryHandle(name, { create: true });
+      let name = base, k = 2;
+      while (true) { try { await parent.getDirectoryHandle(name); name = base + ' ' + (k++); } catch (e) { break; } }
+      const dir = await parent.getDirectoryHandle(name, { create: true });
       let done = 0;
-      for (const [n, blob] of files) { const fh = await dir.getFileHandle(n, { create: true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); done++; bmsg.textContent = `Saving ${done} of ${files.length}…`; }
-      bmsg.textContent = `Saved ${files.length} pictures into a new folder called "${name}". Next: upload them to imgur.com/upload (you can select them all at once).`;
+      for (const [n, blob] of files) { const fh = await dir.getFileHandle(n, { create: true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); done++; msgEl.textContent = `Saving ${done} of ${files.length}…`; }
+      msgEl.textContent = `Saved ${files.length} ${what} into a new folder called "${name}". Next: upload them to imgur.com/upload (you can select them all at once).`;
     } catch (e) {
-      bmsg.textContent = e && e.name === 'AbortError' ? 'Cancelled.' : 'Your browser wouldn’t let this page make a folder. Use Download all as ZIP instead, then unzip it.';
+      msgEl.textContent = e && e.name === 'AbortError' ? 'Cancelled.' : 'Your browser wouldn’t let this page make a folder. Use the ZIP button instead, then unzip it.';
     }
-  });
-  $('saveZip').addEventListener('click', async () => {
-    const files = outNames();
-    bmsg.textContent = 'Packing the ZIP…';
+  }
+  async function saveAsZip(files, zname, msgEl, what) {
+    msgEl.textContent = 'Packing the ZIP…';
     const zip = await makeZip(files);
-    const zname = 'Prop Studio pictures.zip';
     if (downloads) {
-      try { await downloads.save({ filename: zname, data: zip }); bmsg.textContent = `Saved ${files.length} pictures as ${zname}. Unzip it to get the folder.`; }
-      catch (e) { bmsg.textContent = e && e.code === 'declined' ? 'Save cancelled.' : 'Saving isn’t available here.'; }
+      try { await downloads.save({ filename: zname, data: zip }); msgEl.textContent = `Saved ${files.length} ${what} as ${zname}. Unzip it to get the folder.`; }
+      catch (e) { msgEl.textContent = e && e.code === 'declined' ? 'Save cancelled.' : 'Saving isn’t available here.'; }
       return;
     }
     const a = document.createElement('a'); a.href = URL.createObjectURL(zip); a.download = zname; document.body.append(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
-    bmsg.textContent = `Downloaded ${files.length} pictures as ${zname}. Unzip it (right-click > Extract All) to get the folder.`;
-  });
+    msgEl.textContent = `Downloaded ${files.length} ${what} as ${zname}. Unzip it (right-click > Extract All) to get the folder.`;
+  }
+  $('saveFolder').addEventListener('click', () => saveToFolder(outNames(), 'Prop Studio pictures', bmsg, 'pictures'));
+  $('saveZip').addEventListener('click', () => saveAsZip(outNames(), 'Prop Studio pictures.zip', bmsg, 'pictures'));
+
+  // ---------------- picture sheets ----------------
+  // Layout Prop Studio reads: 2048 wide, (2048 - number of pictures) tall. The top 16 rows are a label strip:
+  // block i (16 x 16 px) is a grey level that stores picture i's shape. Below it, a 4 x 4 grid of cells; each picture
+  // is fitted and centred in its cell with an 8 px gap all round.
+  const SW = 2048, STRIP = 16, GRID = 4, GAP = 8, PER = 16;
+  let sheetFiles = [];
+  const smsg = $('smsg');
+  $('sheetsFolder').style.display = canFolder ? '' : 'none';
+  $('makeSheets').addEventListener('click', makeSheets);
+  $('sheetsFolder').addEventListener('click', () => saveToFolder(sheetFiles, 'Prop Studio sheets', smsg, 'sheets'));
+  $('sheetsZip').addEventListener('click', () => saveAsZip(sheetFiles, 'Prop Studio sheets.zip', smsg, 'sheets'));
+
+  async function makeSheets() {
+    const ready = readyItems();
+    if (!ready.length) return;
+    $('sheets').style.display = '';
+    const list = $('sheetList'); list.innerHTML = '';
+    sheetFiles.forEach(f => f[2] && URL.revokeObjectURL(f[2]));
+    sheetFiles = [];
+    const count = Math.ceil(ready.length / PER);
+    for (let si = 0; si < count; si++) {
+      smsg.textContent = `Making sheet ${si + 1} of ${count}…`;
+      const chunk = ready.slice(si * PER, si * PER + PER);
+      const n = chunk.length, H = SW - n;
+      const c = canvas(SW, H), x = c.getContext('2d');
+      x.imageSmoothingQuality = 'high';
+      const anySee = chunk.some(it => it.out.see && it.out.png);
+      if (!anySee) { x.fillStyle = '#141414'; x.fillRect(0, 0, SW, H); }
+      x.fillStyle = '#000'; x.fillRect(0, 0, SW, STRIP);
+      const cw = SW / GRID, ch = (H - STRIP) / GRID;
+      for (let i = 0; i < n; i++) {
+        const bmp = await createImageBitmap(chunk[i].out.blob);
+        const a = bmp.width / bmp.height;
+        const g = Math.round(255 * Math.min(0.98, Math.max(0.02, (Math.log2(a) + 2) / 4)));
+        x.fillStyle = `rgb(${g},${g},${g})`; x.fillRect(i * 16, 0, 16, STRIP);
+        const col = i % GRID, row = Math.floor(i / GRID);
+        const aw = cw - 2 * GAP, ah = ch - 2 * GAP;
+        let w, h; if (a >= aw / ah) { w = aw; h = aw / a; } else { h = ah; w = ah * a; }
+        const cx = col * cw + cw / 2, cy = STRIP + row * ch + ch / 2;
+        x.drawImage(bmp, cx - w / 2, cy - h / 2, w, h);
+        bmp.close && bmp.close();
+      }
+      let blob = await toBlob(c, anySee ? 'image/png' : 'image/jpeg', 0.92);
+      const ext = anySee ? 'png' : 'jpg';
+      const name = `sheet ${si + 1} (${n} picture${n === 1 ? '' : 's'}).${ext}`;
+      const url = URL.createObjectURL(blob);
+      sheetFiles.push([name, blob, url]);
+      const card = document.createElement('div'); card.className = 'card';
+      const big = anySee && blob.size > 4.8 * 1024 * 1024;
+      card.innerHTML = `<div class="prev"><img alt="Sheet ${si + 1}" src="${url}"></div><div><div class="name">${esc(name)}</div>
+        <div class="facts">${n} picture${n === 1 ? '' : 's'} · ${ext.toUpperCase()} · ${kb(blob.size)}</div>
+        <div>${big ? '<span class="tag warn">Over 5 MB: Imgur will turn it into a JPG and the see-through parts go solid. postimages.org keeps it as it is.</span>' : '<span class="tag ok">Ready for Prop Studio</span>'}</div>
+        <p class="msg">${chunk.map(it => esc(baseName(it.file.name || 'picture'))).join(', ')}</p></div>`;
+      list.append(card);
+    }
+    smsg.textContent = `${count} sheet${count === 1 ? '' : 's'} made from ${ready.length} pictures. Save them, upload them to Imgur, then paste each sheet link into Prop Studio and press Open sheet.`;
+    $('sheets').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   // a small ZIP writer (pictures are already compressed, so they're stored as they are)
   const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
