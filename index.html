@@ -30,6 +30,13 @@
   select,input[type=range]{width:100%}
   select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:7px}
   .check{display:flex;gap:8px;align-items:center;font-weight:600;font-size:13px}
+  .pick{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+  .batch{position:sticky;top:0;z-index:5;display:none;align-items:center;gap:10px;flex-wrap:wrap;background:#2b2117f2;border:1px solid var(--gold);border-radius:12px;padding:12px 16px;margin:0 0 16px;backdrop-filter:blur(4px)}
+  .batch.show{display:flex}
+  .batch .count{flex:1;min-width:200px;font-weight:600}
+  .batch .count small{display:block;font-weight:400;color:var(--muted)}
+  .bar{height:6px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:var(--gold);width:0;transition:width .2s}
   .list{display:flex;flex-direction:column;gap:16px}
   .card{display:grid;grid-template-columns:260px 1fr;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
   @media (max-width:640px){.card{grid-template-columns:1fr}}
@@ -56,9 +63,14 @@
   <p class="sub">Drop in any picture (WEBP, AVIF, GIF, BMP, huge PNGs, screenshots…). You get back a PNG or JPG that Prop Studio in Tavern of Tales can load. Nothing is uploaded; it all happens in your browser.</p>
 
   <div class="drop" id="drop" tabindex="0">
-    <b>Drop pictures here, click to pick, or press Ctrl+V to paste</b>
-    <p>Several at once is fine.</p>
-    <input type="file" id="file" accept="image/*" multiple hidden>
+    <b>Drop pictures or whole folders here, or press Ctrl+V to paste</b>
+    <p>One picture or a folder of hundreds: they're all converted, then you can save them all at once.</p>
+    <div class="pick">
+      <button class="btn" type="button" id="pickFiles">Choose pictures</button>
+      <button class="btn ghost" type="button" id="pickFolder">Choose a folder</button>
+    </div>
+    <input type="file" id="file" accept="image/*,.heic,.heif,.avif,.webp,.bmp,.tif,.tiff" multiple hidden>
+    <input type="file" id="folder" webkitdirectory directory multiple hidden>
   </div>
 
   <div class="opts">
@@ -95,12 +107,19 @@
     </div>
   </div>
 
+  <div class="batch" id="batch">
+    <div class="count"><span id="bcount"></span><small id="bnote"></small><div class="bar"><i id="bbar"></i></div></div>
+    <button class="btn" type="button" id="saveFolder">Save all to a new folder</button>
+    <button class="btn ghost" type="button" id="saveZip">Download all as ZIP</button>
+    <button class="btn ghost" type="button" id="clearAll">Clear all</button>
+  </div>
+  <p class="msg" id="bmsg" style="margin:-6px 0 14px"></p>
   <div class="list" id="list"></div>
 
   <div class="steps">
     <h2>Getting it into Prop Studio</h2>
     <ol>
-      <li>Convert your picture above, then press <b>Save</b>.</li>
+      <li>Convert your pictures above, then press <b>Save</b> (or <b>Save all</b> for a whole folder).</li>
       <li>Upload it to <a href="https://imgur.com/upload">imgur.com/upload</a> (no account needed). Everyone in the world can see Imgur pictures; other sites need “Allow Untrusted URLs”.</li>
       <li>On the Imgur page, right-click the picture and choose <b>Copy image address</b>. It should start with <code>https://i.imgur.com/</code> and end in <code>.png</code> or <code>.jpg</code>.</li>
       <li>Paste that link into Prop Studio on your tablet and press Spawn.</li>
@@ -122,32 +141,67 @@
     if (window.claude && claude.use) claude.use('downloads').then(d => { downloads = d; items.forEach(render); }).catch(() => {});
   } catch (e) {}
 
+  const folder = $('folder');
+  $('pickFiles').addEventListener('click', e => { e.stopPropagation(); file.click(); });
+  $('pickFolder').addEventListener('click', e => { e.stopPropagation(); folder.click(); });
   drop.addEventListener('click', () => file.click());
   drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
   file.addEventListener('change', () => { addFiles(file.files); file.value = ''; });
+  folder.addEventListener('change', () => { addFiles(folder.files); folder.value = ''; });
   ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+  drop.addEventListener('drop', async e => {
+    const its = [...(e.dataTransfer.items || [])];
+    const entries = its.map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    if (entries.some(en => en.isDirectory)) {
+      const out = [];
+      await Promise.all(entries.map(en => walk(en, out)));
+      addFiles(out);
+    } else addFiles(e.dataTransfer.files);
+  });
+  function walk(entry, out) {
+    return new Promise(res => {
+      if (entry.isFile) { entry.file(f => { out.push(f); res(); }, () => res()); return; }
+      if (!entry.isDirectory) { res(); return; }
+      const rd = entry.createReader(); const all = [];
+      const next = () => rd.readEntries(async batch => {
+        if (!batch.length) { await Promise.all(all.map(c => walk(c, out))); res(); return; }
+        all.push(...batch); next();
+      }, () => res());
+      next();
+    });
+  }
   document.addEventListener('paste', e => {
     const fs = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean);
     if (fs.length) addFiles(fs);
   });
-  opts.forEach(id => $(id).addEventListener(id === 'tol' ? 'change' : 'input', () => items.forEach(convert)));
+  opts.forEach(id => $(id).addEventListener(id === 'tol' ? 'change' : 'input', () => items.forEach(it => { if (it.bitmap) { it.out = null; render(it); enqueue(() => convert(it)); } })));
 
+  // one picture at a time, so a folder of hundreds doesn't run the browser out of memory
+  let queue = Promise.resolve();
+  function enqueue(job) { queue = queue.then(job).catch(() => {}).then(updateBatch); return queue; }
+
+  const IMG_EXT = /\.(png|jpe?g|webp|avif|gif|bmp|ico|svg|tiff?|heic|heif|jfif|pjpeg|pjp|apng)$/i;
+  function isImage(f) { return (f.type && f.type.startsWith('image/')) || IMG_EXT.test(f.name || ''); }
+
+  let skipped = 0;
   function addFiles(fs) {
     for (const f of fs) {
+      if (!isImage(f)) { skipped++; continue; }
       const it = { file: f, el: document.createElement('div'), out: null, error: null };
       it.el.className = 'card';
-      list.prepend(it.el);
+      list.append(it.el);
       items.push(it);
-      load(it);
+      render(it);
+      enqueue(() => load(it));
     }
+    updateBatch();
   }
 
   async function load(it) {
     try {
       it.bitmap = await decode(it.file);
-      convert(it);
+      await convert(it);
     } catch (e) {
       const ext = (it.file.name.split('.').pop() || '').toLowerCase();
       it.error = ext === 'heic' || ext === 'heif'
@@ -199,7 +253,7 @@
       jx.fillStyle = '#ffffff'; jx.fillRect(0, 0, ow, oh); jx.drawImage(out, 0, 0);
     }
     const token = (it.token = (it.token || 0) + 1);
-    encode(jpgCanvas, usePng).then(blob => {
+    return encode(jpgCanvas, usePng).then(blob => {
       if (token !== it.token) return;
       if (it.out?.url) URL.revokeObjectURL(it.out.url);
       it.out = { blob, url: URL.createObjectURL(blob), w: ow, h: oh, png: usePng, see, iw, ih, lostAlpha: see && !usePng };
@@ -315,7 +369,88 @@
         msg.textContent = 'Copied. Open imgur.com/upload and press Ctrl+V to upload it.';
       } catch (e) { msg.textContent = 'Your browser won’t let this page copy pictures. Right-click the picture and choose “Copy image” or “Save image as” instead.'; }
     });
-    it.el.querySelector('[data-a=remove]').addEventListener('click', () => { it.el.remove(); items.splice(items.indexOf(it), 1); if (o.url) URL.revokeObjectURL(o.url); });
+    it.el.querySelector('[data-a=remove]').addEventListener('click', () => { it.el.remove(); items.splice(items.indexOf(it), 1); if (o.url) URL.revokeObjectURL(o.url); updateBatch(); });
+  }
+
+  // ---------------- saving many at once ----------------
+  const bmsg = $('bmsg');
+  const canFolder = !inClaude && typeof window.showDirectoryPicker === 'function';
+  $('saveFolder').style.display = canFolder ? '' : 'none';
+  function readyItems() { return items.filter(it => it.out && !it.error); }
+  function updateBatch() {
+    const ready = readyItems().length, failed = items.filter(it => it.error).length, total = items.length;
+    const busy = total - ready - failed;
+    $('batch').classList.toggle('show', total > 1 || (total === 1 && skipped > 0));
+    $('bcount').textContent = busy > 0 ? `Converting… ${ready + failed} of ${total}` : `${ready} picture${ready === 1 ? '' : 's'} ready`;
+    $('bnote').textContent = [failed ? `${failed} couldn't be opened` : '', skipped ? `${skipped} non-picture file${skipped === 1 ? '' : 's'} skipped` : ''].filter(Boolean).join(' · ');
+    $('bbar').style.width = total ? Math.round(100 * (ready + failed) / total) + '%' : '0%';
+    $('saveFolder').disabled = $('saveZip').disabled = busy > 0 || ready === 0;
+  }
+  function outNames() {
+    const used = new Set(), names = [];
+    for (const it of readyItems()) {
+      const ext = it.out.png ? 'png' : 'jpg';
+      let b = baseName(it.file.name || 'picture'), n = b + '.' + ext, k = 2;
+      while (used.has(n.toLowerCase())) n = b + '-' + (k++) + '.' + ext;
+      used.add(n.toLowerCase()); names.push([n, it.out.blob]);
+    }
+    return names;
+  }
+  $('clearAll').addEventListener('click', () => { for (const it of items) { if (it.out?.url) URL.revokeObjectURL(it.out.url); it.el.remove(); } items.length = 0; skipped = 0; bmsg.textContent = ''; updateBatch(); });
+  $('saveFolder').addEventListener('click', async () => {
+    const files = outNames();
+    try {
+      const parent = await window.showDirectoryPicker({ mode: 'readwrite' });
+      let name = 'Prop Studio pictures', k = 2, dir;
+      while (true) { try { await parent.getDirectoryHandle(name); name = 'Prop Studio pictures ' + (k++); } catch (e) { break; } }
+      dir = await parent.getDirectoryHandle(name, { create: true });
+      let done = 0;
+      for (const [n, blob] of files) { const fh = await dir.getFileHandle(n, { create: true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); done++; bmsg.textContent = `Saving ${done} of ${files.length}…`; }
+      bmsg.textContent = `Saved ${files.length} pictures into a new folder called "${name}". Next: upload them to imgur.com/upload (you can select them all at once).`;
+    } catch (e) {
+      bmsg.textContent = e && e.name === 'AbortError' ? 'Cancelled.' : 'Your browser wouldn’t let this page make a folder. Use Download all as ZIP instead, then unzip it.';
+    }
+  });
+  $('saveZip').addEventListener('click', async () => {
+    const files = outNames();
+    bmsg.textContent = 'Packing the ZIP…';
+    const zip = await makeZip(files);
+    const zname = 'Prop Studio pictures.zip';
+    if (downloads) {
+      try { await downloads.save({ filename: zname, data: zip }); bmsg.textContent = `Saved ${files.length} pictures as ${zname}. Unzip it to get the folder.`; }
+      catch (e) { bmsg.textContent = e && e.code === 'declined' ? 'Save cancelled.' : 'Saving isn’t available here.'; }
+      return;
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(zip); a.download = zname; document.body.append(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    bmsg.textContent = `Downloaded ${files.length} pictures as ${zname}. Unzip it (right-click > Extract All) to get the folder.`;
+  });
+
+  // a small ZIP writer (pictures are already compressed, so they're stored as they are)
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  async function makeZip(files) {
+    const enc = new TextEncoder(), parts = [], central = [];
+    const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    let offset = 0;
+    for (const [name, blob] of files) {
+      const data = new Uint8Array(await blob.arrayBuffer()), nm = enc.encode(name), crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+      h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+      h.setUint16(26, nm.length, true); h.setUint16(28, 0, true);
+      parts.push(h.buffer, nm, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+      c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+      c.setUint16(28, nm.length, true); c.setUint32(42, offset, true);
+      central.push(c.buffer, nm);
+      offset += 30 + nm.length + data.length;
+    }
+    const csize = central.reduce((a, b) => a + (b.byteLength || b.length), 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, e.buffer], { type: 'application/zip' });
   }
 
   function pngOf(url) {
