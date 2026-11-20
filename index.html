@@ -57,14 +57,40 @@
   .steps li{margin:5px 0}
   a{color:var(--gold2)}
   code{background:var(--panel2);padding:1px 6px;border-radius:5px}
+  .linkbox{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .linkbox input{flex:1;min-width:220px;background:var(--panel2);color:var(--text);border:1px solid var(--gold);border-radius:7px;padding:8px 10px;font:13px ui-monospace,Consolas,monospace}
+  .links{background:var(--panel);border:1px solid var(--gold);border-radius:14px;padding:16px 18px;margin:0 0 18px}
+  .links h2{font-family:Cinzel,serif;font-size:20px;color:var(--gold2);margin:0 0 6px}
+  .links textarea{width:100%;min-height:120px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:13px/1.6 ui-monospace,Consolas,monospace;resize:vertical}
+  .hist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .hist .h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .hist .h span{flex:1;min-width:160px;word-break:break-all;color:var(--muted)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .account{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 16px;margin:0 0 16px}
+  .account span{flex:1;min-width:220px}
+  .pastelink{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:14px 0 0}
+  .pastelink label{display:block;font-size:14px;color:var(--muted)}
+  .pastelink label b{color:var(--text)}
+  ol.big{background:var(--panel);border:1px solid var(--gold);border-radius:14px;padding:16px 20px 16px 40px;margin:0 0 18px;font-size:16px}
+  ol.big li{margin:8px 0}
+  ol.big .btn{text-decoration:none;display:inline-block;padding:5px 12px;margin:0 2px}
+  .pastelink{font-size:14px;color:var(--muted)} .pastelink b{color:var(--text)}
+  details.more{margin:14px 0 0} details.more summary{cursor:pointer;color:var(--gold2);font-weight:600}
+  .steps ul{margin:0;padding-left:20px} .steps li{margin:5px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Prop Studio Picture Converter</h1>
-  <p class="sub">Drop in any picture (WEBP, AVIF, GIF, BMP, huge PNGs, screenshots…). You get back a PNG or JPG that Prop Studio in Tavern of Tales can load. Nothing is uploaded; it all happens in your browser.</p>
+  <p class="sub">Picture won't load in Prop Studio? Three quick steps, free, no account or sign-in.</p>
 
-  <div class="drop" id="drop" tabindex="0">
+  <ol class="big">
+    <li><b>Drop your picture below</b> (or press Ctrl+V). It's fixed for VRChat right here in your browser.</li>
+    <li><b>Press Save</b>, then press <a class="btn" href="https://postimages.org/" target="_blank" rel="noopener">Open Postimages</a> and upload the saved picture there (no sign-in).</li>
+    <li>On Postimages, copy the <b>Direct link</b> (it starts with <code>https://i.postimg.cc/</code>), paste it into Prop Studio and press <b>Spawn</b>.</li>
+  </ol>
+
+    <div class="drop" id="drop" tabindex="0">
     <b>Drop pictures or whole folders here, or press Ctrl+V to paste</b>
     <p>One picture or a folder of hundreds: they're all converted, then you can save them all at once.</p>
     <div class="pick">
@@ -75,6 +101,10 @@
     <input type="file" id="folder" webkitdirectory directory multiple hidden>
   </div>
 
+  <div class="pastelink">
+    <b>Only have a link?</b> (Discord, a website, ChatGPT…) If it still opens in your browser: right-click the picture &gt; <b>Save image as</b>, then drop the saved file above. Discord links stop working after about a day, so do this soon after it was posted.
+  </div>
+  <details class="more"><summary>Settings (optional)</summary>
   <div class="opts">
     <div class="opt">
       <label for="size">Biggest side</label>
@@ -108,6 +138,7 @@
       <small>The prop takes the picture's shape, so empty borders make it bigger than it looks.</small>
     </div>
   </div>
+  </details>
 
   <div class="batch" id="batch">
     <div class="count"><span id="bcount"></span><small id="bnote"></small><div class="bar"><i id="bbar"></i></div></div>
@@ -119,22 +150,21 @@
   <p class="msg" id="bmsg" style="margin:-6px 0 14px"></p>
   <div id="sheets" class="sheets" style="display:none">
     <h2>Picture sheets</h2>
-    <p class="msg">Each sheet holds up to 16 pictures. Upload the sheets to Imgur, then paste one sheet link into Prop Studio and press <b>Open sheet</b>: you'll see all its pictures and can tap any of them (or Spawn all).</p>
-    <div class="row"><button class="btn" type="button" id="sheetsFolder">Save sheets to a new folder</button><button class="btn ghost" type="button" id="sheetsZip">Download sheets as ZIP</button></div>
+    <p class="msg">Each sheet holds up to 16 pictures. Save the sheets, upload them to Postimages (you can pick them all at once), copy each sheet's <b>Direct link</b>, paste it into Prop Studio and press <b>Open sheet</b>: tap any picture on it (or Spawn all).</p>
+    <div class="row"><a class="btn" style="text-decoration:none" href="https://postimages.org/" target="_blank" rel="noopener">Open Postimages</a><button class="btn ghost" type="button" id="sheetsFolder">Save sheets to a new folder</button><button class="btn ghost" type="button" id="sheetsZip">Download sheets as ZIP</button></div>
     <p class="msg" id="smsg"></p>
     <div class="list" id="sheetList"></div>
   </div>
   <div class="list" id="list"></div>
 
   <div class="steps">
-    <h2>Getting it into Prop Studio</h2>
-    <ol>
-      <li>Convert your pictures above. For several pictures, press <b>Make picture sheets</b> (16 pictures per sheet) and save the sheets. For one picture, just press <b>Save</b>.</li>
-      <li>Upload it to <a href="https://imgur.com/upload">imgur.com/upload</a> (no account needed). Everyone in the world can see Imgur pictures; other sites need “Allow Untrusted URLs”.</li>
-      <li>On the Imgur page, right-click the picture and choose <b>Copy image address</b>. It should start with <code>https://i.imgur.com/</code> and end in <code>.png</code> or <code>.jpg</code>.</li>
-      <li>Paste that link into Prop Studio and press <b>Spawn</b> (one picture) or <b>Open sheet</b> (a sheet: tap the pictures you want, or Spawn all). Save it with a name and it's there every visit.</li>
-    </ol>
-    <p class="msg">Animated GIFs: VRChat can't play .gif files. This page keeps the first frame as a picture. To keep the animation, upload the GIF to Imgur and change <code>.gif</code> to <code>.mp4</code> at the end of the link.</p>
+    <h2>Good to know</h2>
+    <ul>
+      <li>On Postimages leave <b>Expiration</b> on <b>No expiration</b>, or the link stops working.</li>
+      <li>Links that work for everyone in VRChat start with <code>https://i.postimg.cc/</code>, <code>https://i.imgur.com/</code> or <code>https://i.ibb.co/</code> and end in <code>.png</code> or <code>.jpg</code>. Postimages' other links (the page link) won't work: use the <b>Direct link</b>.</li>
+      <li><b>Lots of pictures?</b> Drop them all, press <b>Make picture sheets</b> (16 pictures per sheet), upload the sheets, and paste a sheet's link into Prop Studio, then press <b>Open sheet</b>.</li>
+      <li>Animated GIFs can't play in VRChat; this page keeps the first frame.</li>
+    </ul>
   </div>
 </div>
 
@@ -146,7 +176,6 @@
   let downloads = null;
   const inClaude = /claude\.ai|claudeusercontent|claude\.site/.test(location.hostname + document.referrer);
   const items = [];
-
   try {
     if (window.claude && claude.use) claude.use('downloads').then(d => { downloads = d; items.forEach(render); }).catch(() => {});
   } catch (e) {}
@@ -275,7 +304,7 @@
   async function encode(cv, png) {
     if (png) {
       let b = await toBlob(cv, 'image/png');
-      // Imgur turns PNGs over 5 MB into JPGs (losing see-through parts), so shrink until it fits
+      // keep PNGs under ~5 MB so free picture sites take them as they are
       let cur = cv;
       while (b.size > 4.8 * 1024 * 1024 && Math.max(cur.width, cur.height) > 512) {
         const n = canvas(Math.round(cur.width * 0.85), Math.round(cur.height * 0.85));
@@ -350,7 +379,7 @@
     const o = it.out, ext = o.png ? 'png' : 'jpg', fname = baseName(f.name || 'picture') + '-prop.' + ext;
     const type = (f.type || '').replace('image/', '').toUpperCase() || (f.name.split('.').pop() || '?').toUpperCase();
     const tags = [`<span class="tag ok">Ready for Prop Studio</span>`];
-    if (o.blob.shrunkTo) tags.push(`<span class="tag warn">Shrunk to ${o.blob.shrunkTo[0]}×${o.blob.shrunkTo[1]} to stay under Imgur's 5 MB PNG limit</span>`);
+    if (o.blob.shrunkTo) tags.push(`<span class="tag warn">Shrunk to ${o.blob.shrunkTo[0]}×${o.blob.shrunkTo[1]} to keep the file small enough to upload</span>`);
     if (o.lostAlpha) tags.push(`<span class="tag warn">See-through parts filled white (JPG)</span>`);
     if (/gif/i.test(type)) tags.push(`<span class="tag warn">First frame of the GIF only</span>`);
     const w = o.blob.shrunkTo ? o.blob.shrunkTo[0] : o.w, h = o.blob.shrunkTo ? o.blob.shrunkTo[1] : o.h;
@@ -362,21 +391,22 @@
         <div>${tags.join('')}</div>
         <div class="row">
           ${downloads ? `<button class="btn" data-a="save">Save ${ext.toUpperCase()}</button>` : (inClaude ? '' : `<a class="btn" style="text-decoration:none" download="${fname}" href="${o.url}">Save ${ext.toUpperCase()}</a>`)}
-          <button class="btn ${downloads ? 'ghost' : ''}" data-a="copy">Copy picture</button>
+          <a class="btn" style="text-decoration:none" href="https://postimages.org/" target="_blank" rel="noopener">Open Postimages</a>
+          <button class="btn ghost" data-a="copy">Copy picture</button>
           <button class="btn ghost" data-a="remove">Remove</button>
         </div>
-        <p class="msg" data-m>${downloads || !inClaude ? '' : 'To save: right-click the picture on the left and choose “Save image as”. Or press Copy picture and paste it straight into imgur.com/upload with Ctrl+V.'}</p>
+        <p class="msg" data-m>${downloads || !inClaude ? '' : 'To save: right-click the picture on the left and choose “Save image as”.'}</p>
       </div>`;
     const msg = it.el.querySelector('[data-m]');
     it.el.querySelector('[data-a=save]')?.addEventListener('click', async () => {
-      try { await downloads.save({ filename: fname, data: o.blob }); msg.textContent = 'Saved as ' + fname + '. Next: upload it to imgur.com/upload.'; }
+      try { await downloads.save({ filename: fname, data: o.blob }); msg.textContent = 'Saved as ' + fname + '. Next: press Open Postimages and upload it.'; }
       catch (e) { msg.textContent = e && e.code === 'declined' ? 'Save cancelled.' : 'Saving isn’t available here. Right-click the picture and choose “Save image as”.'; }
     });
     it.el.querySelector('[data-a=copy]').addEventListener('click', async () => {
       try {
         const png = o.png ? o.blob : await pngOf(o.url);
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
-        msg.textContent = 'Copied. Open imgur.com/upload and press Ctrl+V to upload it.';
+        msg.textContent = 'Copied. Open Postimages and press Ctrl+V there to upload it.';
       } catch (e) { msg.textContent = 'Your browser won’t let this page copy pictures. Right-click the picture and choose “Copy image” or “Save image as” instead.'; }
     });
     it.el.querySelector('[data-a=remove]').addEventListener('click', () => { it.el.remove(); items.splice(items.indexOf(it), 1); if (o.url) URL.revokeObjectURL(o.url); updateBatch(); });
@@ -415,7 +445,7 @@
       const dir = await parent.getDirectoryHandle(name, { create: true });
       let done = 0;
       for (const [n, blob] of files) { const fh = await dir.getFileHandle(n, { create: true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); done++; msgEl.textContent = `Saving ${done} of ${files.length}…`; }
-      msgEl.textContent = `Saved ${files.length} ${what} into a new folder called "${name}". Next: upload them to imgur.com/upload (you can select them all at once).`;
+      msgEl.textContent = `Saved ${files.length} ${what} into a new folder called "${name}". Next: press Open Postimages and upload them (you can pick them all at once).`;
     } catch (e) {
       msgEl.textContent = e && e.name === 'AbortError' ? 'Cancelled.' : 'Your browser wouldn’t let this page make a folder. Use the ZIP button instead, then unzip it.';
     }
@@ -483,14 +513,15 @@
       const url = URL.createObjectURL(blob);
       sheetFiles.push([name, blob, url]);
       const card = document.createElement('div'); card.className = 'card';
-      const big = anySee && blob.size > 4.8 * 1024 * 1024;
       card.innerHTML = `<div class="prev"><img alt="Sheet ${si + 1}" src="${url}"></div><div><div class="name">${esc(name)}</div>
         <div class="facts">${n} picture${n === 1 ? '' : 's'} · ${ext.toUpperCase()} · ${kb(blob.size)}</div>
-        <div>${big ? '<span class="tag warn">Over 5 MB: Imgur will turn it into a JPG and the see-through parts go solid. postimages.org keeps it as it is.</span>' : '<span class="tag ok">Ready for Prop Studio</span>'}</div>
-        <p class="msg">${chunk.map(it => esc(baseName(it.file.name || 'picture'))).join(', ')}</p></div>`;
+        <div><span class="tag ok">Ready for Prop Studio</span></div>
+        <p class="msg">${chunk.map(it => esc(baseName(it.file.name || 'picture'))).join(', ')}</p>
+</div>`;
       list.append(card);
+      sheetFiles[si].card = card;
     }
-    smsg.textContent = `${count} sheet${count === 1 ? '' : 's'} made from ${ready.length} pictures. Save them, upload them to Imgur, then paste each sheet link into Prop Studio and press Open sheet.`;
+    smsg.textContent = `${count} sheet${count === 1 ? '' : 's'} made from ${ready.length} pictures. Save them, upload them to Postimages, then paste a sheet's Direct link into Prop Studio and press Open sheet.`;
     $('sheets').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
